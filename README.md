@@ -67,61 +67,77 @@ This document describes the architecture of the `self-hosted-server` project, wh
 self-hosted-server/
 ├── docker-compose.yml
 ├── client/
-│   ├── Dockerfile
-│   ├── nginx.conf
-│   ├── package.json
-│   ├── public/
-│   │   └── index.html
-│   └── src/
-│       ├── App.css
-│       ├── App.js
-│       ├── index.js
-│       └── SuyashChandra3.html
-└── server/
-    ├── Dockerfile
-    ├── package.json
-    └── src/
-        ├── index.js
-        ├── config/
-        │   └── index.js
-        ├── middleware/
-        │   └── cors.js
-        └── routes/
-            ├── api.js
-            └── metrics.js
+
+Cloudflare Tunnel (formerly Argo Tunnel) allows you to securely expose your local or self-hosted server to the internet without opening ports on your firewall. This is useful for development, remote access, or production deployments behind NAT or restrictive networks.
+
+---
+
+### Running cloudflared in Docker
+
+You can run cloudflared as a Docker container alongside your other services. This is convenient for production and containerized environments.
+
+#### 1. Authenticate and Create Tunnel (One-Time Setup)
+You must first authenticate and create your tunnel credentials on your local machine:
+
+```sh
+docker run -it --rm \
+  -v ~/.cloudflared:/home/nonroot/.cloudflared \
+  cloudflare/cloudflared:latest tunnel login
 ```
 
----
+Then create a tunnel and generate credentials:
 
-## Components
+```sh
+docker run -it --rm \
+  -v ~/.cloudflared:/home/nonroot/.cloudflared \
+  cloudflare/cloudflared:latest tunnel create <TUNNEL-NAME>
+```
 
-### 1. Client
-- **Framework:** React (JavaScript)
-- **Containerized:** Yes (Dockerfile)
-- **Web Server:** Nginx (nginx.conf)
-- **Entry Point:** `src/index.js`
-- **Static Files:** Served from `public/`
+#### 2. Create config.yml
+Place your `config.yml` and credentials file in the `~/.cloudflared` directory (or mount a custom path). Example config:
 
-### 2. Server
-- **Framework:** Node.js (Express)
-- **Containerized:** Yes (Dockerfile)
-- **Entry Point:** `src/index.js`
-- **Configuration:** `src/config/index.js`
-- **Middleware:** `src/middleware/cors.js` (CORS handling)
-- **API Routes:**
-  - `src/routes/api.js` (main API endpoints)
-  - `src/routes/metrics.js` (metrics endpoints)
-
-### 3. Orchestration
-- **Tool:** Docker Compose
-- **File:** `docker-compose.yml`
-- **Purpose:** Defines and manages multi-container deployment for both client and server.
-
----
+```yaml
+tunnel: <TUNNEL-ID>
+credentials-file: /home/nonroot/.cloudflared/<TUNNEL-ID>.json
 
 ## Data Flow
 1. **Client** sends HTTP requests to the **Server** (API endpoints).
 2. **Server** processes requests, applies middleware, and responds with data or metrics.
+```
+
+> Replace `app.example.com` with your domain/subdomain and `client:3000` with your service name and port as defined in docker-compose.
+
+#### 3. Add cloudflared to docker-compose.yml
+
+Example service:
+
+```yaml
+services:
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel run
+    volumes:
+      - ~/.cloudflared:/home/nonroot/.cloudflared
+    depends_on:
+      - client
+```
+
+#### 4. Route DNS to the Tunnel
+```sh
+docker run -it --rm \
+  -v ~/.cloudflared:/home/nonroot/.cloudflared \
+  cloudflare/cloudflared:latest tunnel route dns <TUNNEL-NAME> app.example.com
+```
+
+#### 5. Start All Services
+```sh
+docker-compose up -d
+```
+
+Your app is now securely accessible at `https://app.example.com` via Cloudflare’s network.
+
+---
 3. **Nginx** serves the React app and proxies API requests if configured.
 
 ---
