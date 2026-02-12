@@ -1,3 +1,59 @@
+---
+
+## Using Cloudflare Tunnel (Cloudflared)
+
+Cloudflare Tunnel (formerly Argo Tunnel) allows you to securely expose your local or self-hosted server to the internet without opening ports on your firewall. This is useful for development, remote access, or production deployments behind NAT or restrictive networks.
+
+### 1. Install Cloudflared
+Download and install the Cloudflared client from the [official documentation](https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/install-and-setup/installation/).
+
+For macOS:
+```sh
+brew install cloudflared
+```
+For Linux:
+```sh
+sudo apt install cloudflared
+```
+
+### 2. Authenticate Cloudflared with Cloudflare
+```sh
+cloudflared login
+```
+This will open a browser window to authenticate and select your domain.
+
+### 3. Create a Tunnel
+```sh
+cloudflared tunnel create <TUNNEL-NAME>
+```
+This will generate credentials and a tunnel ID.
+
+### 4. Configure the Tunnel
+Create a configuration file (e.g., `config.yml`) in the default directory (usually `~/.cloudflared/`). Example:
+
+```yaml
+tunnel: <TUNNEL-ID>
+credentials-file: /Users/<your-user>/.cloudflared/<TUNNEL-ID>.json
+ingress:
+  - hostname: app.example.com
+    service: http://localhost:3000
+  - service: http_status:404
+```
+Replace `app.example.com` with your domain/subdomain and `localhost:3000` with your app’s local address.
+
+### 5. Route DNS to the Tunnel
+```sh
+cloudflared tunnel route dns <TUNNEL-NAME> app.example.com
+```
+This creates a CNAME in Cloudflare DNS pointing to the tunnel.
+
+### 6. Run the Tunnel
+```sh
+cloudflared tunnel run <TUNNEL-NAME>
+```
+Your app is now securely accessible at `https://app.example.com` via Cloudflare’s network.
+
+---
 # Project Architecture
 
 ## Overview
@@ -99,6 +155,51 @@ self-hosted-server/
 ---
 
 For more details, see the code and configuration files in each directory.
+---
+
+## Using Cloudflare for DNS and Domain Management
+
+You can use Cloudflare to manage your domain and DNS for this self-hosted project. Cloudflare provides DNS hosting, security, and performance features. Here’s how to set it up:
+
+### 1. Add Your Domain to Cloudflare
+1. Sign up or log in at [Cloudflare](https://dash.cloudflare.com/).
+2. Click **Add a Site** and enter your domain name (e.g., `example.com`).
+3. Cloudflare will scan your current DNS records. Review and confirm them.
+4. Choose a plan (the free plan is sufficient for most use cases).
+
+### 2. Update Your Domain Registrar’s Nameservers
+1. Cloudflare will provide you with new nameservers.
+2. Log in to your domain registrar (where you bought your domain).
+3. Replace the existing nameservers with the ones provided by Cloudflare.
+4. It may take some time for DNS changes to propagate.
+
+### 3. Configure DNS Records in Cloudflare
+1. In the Cloudflare dashboard, go to the **DNS** tab for your domain.
+2. Add an **A record** pointing your domain (e.g., `@` or `www`) to your server’s public IP address.
+  - **Type:** A
+  - **Name:** @ (for root domain) or www (for subdomain)
+  - **IPv4 address:** Your server’s public IP
+  - **Proxy status:** (Orange cloud) enabled for Cloudflare proxy, or disabled for DNS only
+3. If you use subdomains (e.g., `api.example.com`), add additional A records as needed.
+
+### 4. (Optional) Enable SSL/TLS
+1. In the **SSL/TLS** tab, select the desired encryption mode (e.g., Flexible, Full, or Full (Strict)).
+2. Cloudflare can provide a free SSL certificate for your domain.
+3. Make sure your server is configured to accept HTTPS traffic if you enable Full SSL.
+
+### 5. (Optional) Page Rules and Security
+- Use Cloudflare’s **Page Rules** to redirect HTTP to HTTPS, cache content, or set custom behaviors.
+- Enable **Firewall Rules** for extra protection against malicious traffic.
+
+### Example DNS Record
+| Type | Name | Content         | Proxy |
+|------|------|----------------|-------|
+|  A   | @    | 203.0.113.10   | ☁️    |
+|  A   | www  | 203.0.113.10   | ☁️    |
+
+Replace `203.0.113.10` with your server’s actual public IP address.
+
+---
 ---
 
 ## How to Run the Project
