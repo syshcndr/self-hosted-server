@@ -1,0 +1,51 @@
+services:
+  frontend:
+    build: ./client
+    container_name: frontend
+    hostname: frontend
+    ports:
+      - "80:80"
+      - "443:443"
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_started
+    networks:
+      tunnel-net:
+        aliases:
+          - frontend
+
+  backend:
+    build: ./server
+    container_name: backend
+    hostname: backend
+    privileged: true
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+    networks:
+      tunnel-net:
+        aliases:
+          - backend
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: cloudflare-tunnel
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
+    networks:
+      - tunnel-net
+    depends_on:
+      frontend:
+        condition: service_started
+
+networks:
+  tunnel-net:
+    driver: bridge
